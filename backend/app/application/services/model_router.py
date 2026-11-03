@@ -1,4 +1,5 @@
 from app.domain.models.model_definition import (
+    ExecutionMode,
     ModelCapability,
     ModelDefinition,
     QualityTier,
@@ -13,6 +14,12 @@ QUALITY_WEIGHT: dict[QualityTier, int] = {
     QualityTier.HIGH: 3,
     QualityTier.CINEMATIC: 4,
 }
+
+# The quality, latency and cost parts of a score can differ by at most 24 + 30 + 25 = 79
+# points between two candidates. A larger bonus means a model in the preferred execution
+# mode always outranks one that is not, while the mode stays a preference: when no
+# eligible model runs in that mode, the best-scoring model in another mode is used.
+EXECUTION_MODE_BONUS = 100.0
 
 
 class NoModelRouteError(RuntimeError):
@@ -32,11 +39,6 @@ class ModelRouter:
             if not model.enabled or provider is None or not provider.enabled:
                 continue
             if provider.health == ProviderHealth.UNAVAILABLE:
-                continue
-            if (
-                request.preferred_execution_mode
-                and model.execution_mode != request.preferred_execution_mode
-            ):
                 continue
 
             capability = next(
@@ -67,7 +69,22 @@ class ModelRouter:
             f"{capability.estimated_latency_seconds}s estimated latency, "
             f"{capability.estimated_cost_units:.2f} cost units."
         )
+        mode_note = self._execution_mode_note(request.preferred_execution_mode, model)
+        if mode_note:
+            reason = f"{reason} {mode_note}"
         return ModelRoute(capability=request.capability, model=model, score=score, reason=reason)
+
+    @staticmethod
+    def _execution_mode_note(preferred: ExecutionMode | None, model: ModelDefinition) -> str:
+        if preferred is None:
+            return ""
+        if model.execution_mode == preferred:
+            return f"Runs in the preferred {preferred.value} execution mode."
+        # EXECUTION_MODE_BONUS guarantees this only happens when no candidate matched.
+        return (
+            f"No eligible model runs in the preferred {preferred.value} execution mode, "
+            f"so this {model.execution_mode.value} model is used instead."
+        )
 
     def _score(
         self,
@@ -81,7 +98,12 @@ class ModelRouter:
 
         latency_score = max(0, 30 - capability.estimated_latency_seconds / 10)
         cost_score = max(0, 25 - capability.estimated_cost_units * 2)
-        execution_bonus = 5 if request.preferred_execution_mode == model.execution_mode else 0
+        execution_bonus = (
+            EXECUTION_MODE_BONUS
+            if request.preferred_execution_mode is not None
+            and model.execution_mode == request.preferred_execution_mode
+            else 0.0
+        )
         provider_bonus = 2
 
         return quality_score + latency_score + cost_score + execution_bonus + provider_bonus
