@@ -51,7 +51,7 @@ class WorkflowExecutor:
     URIs into ``payload["artifacts"]``, both keyed by upstream stage. The scene planner
     sees the story, the prompt enhancer sees the scenes, and an image stage that
     follows another image stage receives that stage's image URIs instead of the raw
-    provider response.
+    provider response. No adapter consumes ``payload["artifacts"]`` yet.
 
     A stage whose provider has no adapter, or whose adapter does not implement the
     stage's capability, runs on the fallback (mock) provider and is reported as
