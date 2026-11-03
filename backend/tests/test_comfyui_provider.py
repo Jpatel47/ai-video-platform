@@ -139,6 +139,60 @@ async def test_uses_enhanced_prompt_from_context(monkeypatch: pytest.MonkeyPatch
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "context",
+    [
+        {"character_generation": {"model_slug": "flux-image", "images": [{"filename": "a.png"}]}},
+        {"prompt_enhancement": {"text": "not a plain string"}},
+        {"prompt_enhancement": "   "},
+    ],
+    ids=["upstream-image-result", "non-text-enhancement", "blank-enhancement"],
+)
+async def test_falls_back_to_brief_when_context_has_no_usable_text(
+    monkeypatch: pytest.MonkeyPatch, context: dict[str, Any]
+) -> None:
+    submitted: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/prompt":
+            submitted.update(json.loads(request.content))
+            return httpx.Response(200, json={"prompt_id": "job-3"})
+        if request.url.path == "/history/job-3":
+            return httpx.Response(
+                200,
+                json={
+                    "job-3": {
+                        "status": {"status_str": "success", "completed": True},
+                        "outputs": {"7": {"images": [{"filename": "x.png"}]}},
+                    }
+                },
+            )
+        return httpx.Response(404)
+
+    transport = _mock_transport(handler)
+    original_client = httpx.AsyncClient
+
+    def patched_client(**kwargs: Any) -> httpx.AsyncClient:
+        kwargs["transport"] = transport
+        return original_client(**kwargs)
+
+    monkeypatch.setattr(httpx, "AsyncClient", patched_client)
+
+    provider = ComfyUIProvider(
+        base_url="http://comfy.test",
+        checkpoint="sdxl.safetensors",
+        poll_interval_seconds=0.01,
+    )
+    await provider.execute(
+        model_slug="flux-image",
+        capability=CapabilityType.IMAGE_GENERATION,
+        payload={"prompt": "a rabbit teaching addition", "context": context},
+    )
+
+    assert submitted["prompt"]["2"]["inputs"]["text"] == "a rabbit teaching addition"
+
+
+@pytest.mark.asyncio
 async def test_raises_when_no_checkpoints_installed(monkeypatch: pytest.MonkeyPatch) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/object_info/CheckpointLoaderSimple":
