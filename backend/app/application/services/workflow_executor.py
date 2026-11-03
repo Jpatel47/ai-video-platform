@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from app.application.ports.provider import AIProvider, UnsupportedCapabilityError
@@ -18,12 +19,39 @@ class WorkflowExecutionError(RuntimeError):
     pass
 
 
+@dataclass(frozen=True)
+class ForwardedOutput:
+    """The parts of a stage result that downstream stages receive."""
+
+    text: str | None
+    artifact_uris: tuple[str, ...]
+
+    @classmethod
+    def from_result(cls, result: Mapping[str, Any]) -> "ForwardedOutput":
+        """Keep the text output and artifact URIs; drop provider bookkeeping fields."""
+        text = result.get("output")
+        uris: list[str] = []
+        listed = result.get("artifact_uris")
+        if isinstance(listed, list):
+            uris.extend(uri for uri in listed if isinstance(uri, str))
+        single = result.get("artifact_uri")
+        if isinstance(single, str):
+            uris.append(single)
+        return cls(
+            text=text if isinstance(text, str) and text.strip() else None,
+            artifact_uris=tuple(uris),
+        )
+
+
 class WorkflowExecutor:
     """Executes a planned workflow by dispatching each stage to its provider adapter.
 
-    Stages run in dependency order. The textual output of completed upstream stages
-    is forwarded to downstream stages as context, so the scene planner sees the story
-    and the prompt enhancer sees the scenes.
+    Stages run in dependency order. Only meaningful output of completed upstream
+    stages is forwarded downstream: text goes into ``payload["context"]`` and artifact
+    URIs into ``payload["artifacts"]``, both keyed by upstream stage. The scene planner
+    sees the story, the prompt enhancer sees the scenes, and an image stage that
+    follows another image stage receives that stage's image URIs instead of the raw
+    provider response.
     """
 
     def __init__(
@@ -36,7 +64,7 @@ class WorkflowExecutor:
 
     async def execute(self, plan: WorkflowPlan) -> WorkflowRunResult:
         ordered_stages = self._resolve_order(plan)
-        outputs: dict[str, Any] = {}
+        outputs: dict[str, ForwardedOutput] = {}
         failed_stages: set[str] = set()
         results: list[StageResult] = []
 
@@ -94,7 +122,7 @@ class WorkflowExecutor:
                 )
                 continue
 
-            outputs[stage.key] = output.get("output", output)
+            outputs[stage.key] = ForwardedOutput.from_result(output)
             results.append(
                 StageResult(
                     stage_key=stage.key,
@@ -127,7 +155,7 @@ class WorkflowExecutor:
     def _build_payload(
         plan: WorkflowPlan,
         depends_on: list[str],
-        outputs: dict[str, Any],
+        outputs: Mapping[str, ForwardedOutput],
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "prompt": plan.request.prompt,
@@ -137,9 +165,20 @@ class WorkflowExecutor:
         if plan.request.target_audience:
             payload["target_audience"] = plan.request.target_audience
 
-        context = {key: outputs[key] for key in depends_on if key in outputs}
+        context: dict[str, str] = {}
+        artifacts: dict[str, list[str]] = {}
+        for key in depends_on:
+            upstream = outputs.get(key)
+            if upstream is None:
+                continue
+            if upstream.text is not None:
+                context[key] = upstream.text
+            if upstream.artifact_uris:
+                artifacts[key] = list(upstream.artifact_uris)
         if context:
             payload["context"] = context
+        if artifacts:
+            payload["artifacts"] = artifacts
         return payload
 
     @staticmethod
