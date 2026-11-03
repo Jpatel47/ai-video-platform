@@ -1,0 +1,39 @@
+.DS_Store
+
+# Python
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+*.pyc
+*.egg-info/
+.coverage
+htmlcov/
+build/
+dist/
+
+# Node
+node_modules/
+.next/
+out/
+npm-debug.log*
+*.tsbuildinfo
+
+# Environment (the committed *.env.example files are templates)
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Media and generated renders
+*.mp4
+*.mov
+*.webm
+*.wav
+*.mp3
+media/
+outputs/
