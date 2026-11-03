@@ -170,20 +170,21 @@ class ComfyUIProvider:
 
     @staticmethod
     def _build_positive_prompt(payload: dict[str, Any]) -> str:
-        sections: list[str] = []
-        prompt = str(payload.get("prompt", "")).strip()
-        if prompt:
-            sections.append(prompt)
+        """Return the enhanced prompt text when one was forwarded, otherwise the brief.
 
+        Only text is used. Other context values (such as another image stage's result)
+        are ignored instead of being stringified into the prompt.
+        """
         context = payload.get("context")
         if isinstance(context, dict):
-            enhanced = context.get("prompt_enhancement") or context.get("character_generation")
-            if enhanced:
-                sections = [str(enhanced)]
+            enhanced = context.get("prompt_enhancement")
+            if isinstance(enhanced, str) and enhanced.strip():
+                return enhanced.strip()
 
-        if not sections:
-            raise UnsupportedCapabilityError("Payload contains no prompt to render")
-        return "\n".join(sections)
+        prompt = payload.get("prompt")
+        if isinstance(prompt, str) and prompt.strip():
+            return prompt.strip()
+        raise UnsupportedCapabilityError("Payload contains no prompt to render")
 
     def _text_to_image_graph(
         self,
