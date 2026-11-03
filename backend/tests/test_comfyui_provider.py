@@ -144,11 +144,7 @@ async def test_raises_when_no_checkpoints_installed(monkeypatch: pytest.MonkeyPa
         if request.url.path == "/object_info/CheckpointLoaderSimple":
             return httpx.Response(
                 200,
-                json={
-                    "CheckpointLoaderSimple": {
-                        "input": {"required": {"ckpt_name": [[]]}}
-                    }
-                },
+                json={"CheckpointLoaderSimple": {"input": {"required": {"ckpt_name": [[]]}}}},
             )
         return httpx.Response(404)
 

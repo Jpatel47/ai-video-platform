@@ -45,9 +45,7 @@ def build_application_container() -> ApplicationContainer:
     model_registry = InMemoryModelRegistry(_models())
     workflow_registry = InMemoryWorkflowRegistry(_workflow_templates())
     model_router = ModelRouter(model_registry=model_registry, provider_registry=provider_registry)
-    workflow_engine = WorkflowEngine(
-        model_router=model_router, workflow_registry=workflow_registry
-    )
+    workflow_engine = WorkflowEngine(model_router=model_router, workflow_registry=workflow_registry)
 
     provider_adapters: dict[str, AIProvider] = {
         "ollama-local": OllamaProvider(

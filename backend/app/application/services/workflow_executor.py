@@ -58,9 +58,7 @@ class WorkflowExecutor:
                 failed_stages.add(stage.key)
                 continue
 
-            provider = self._providers.get(
-                stage.route.model.provider_slug, self._fallback_provider
-            )
+            provider = self._providers.get(stage.route.model.provider_slug, self._fallback_provider)
             payload = self._build_payload(plan, stage.depends_on, outputs)
 
             try:
