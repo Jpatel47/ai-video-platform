@@ -49,6 +49,9 @@ class WorkflowPlan(BaseModel):
 
 class StageStatus(StrEnum):
     COMPLETED = "completed"
+    # Run by the mock fallback provider because no real adapter implements the stage's
+    # capability. The output holds placeholder mock:// URIs; no media was produced.
+    SIMULATED = "simulated"
     FAILED = "failed"
     SKIPPED = "skipped"
 
@@ -67,4 +70,8 @@ class WorkflowRunResult(BaseModel):
     plan_id: UUID
     status: WorkflowStatus
     stage_results: list[StageResult]
+    simulated_stages: list[str] = Field(
+        default_factory=list,
+        description="Keys of stages that ran on the mock provider and produced no media.",
+    )
     director_summary: str

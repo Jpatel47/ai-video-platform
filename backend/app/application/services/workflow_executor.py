@@ -52,6 +52,10 @@ class WorkflowExecutor:
     sees the story, the prompt enhancer sees the scenes, and an image stage that
     follows another image stage receives that stage's image URIs instead of the raw
     provider response.
+
+    A stage whose provider has no adapter, or whose adapter does not implement the
+    stage's capability, runs on the fallback (mock) provider and is reported as
+    ``SIMULATED`` rather than ``COMPLETED``, because its output is a placeholder.
     """
 
     def __init__(
@@ -87,6 +91,7 @@ class WorkflowExecutor:
                 continue
 
             provider = self._providers.get(stage.route.model.provider_slug, self._fallback_provider)
+            simulated = provider is self._fallback_provider
             payload = self._build_payload(plan, stage.depends_on, outputs)
 
             try:
@@ -102,6 +107,7 @@ class WorkflowExecutor:
                         stage.key,
                         stage.required_capability.value,
                     )
+                    simulated = True
                     output = await self._fallback_provider.execute(
                         model_slug=stage.route.model.slug,
                         capability=stage.required_capability,
@@ -129,25 +135,38 @@ class WorkflowExecutor:
                     label=stage.label,
                     model_slug=stage.route.model.slug,
                     provider_slug=stage.route.model.provider_slug,
-                    status=StageStatus.COMPLETED,
+                    status=StageStatus.SIMULATED if simulated else StageStatus.COMPLETED,
                     output=output,
                 )
             )
 
+        total = len(results)
         completed = sum(1 for item in results if item.status == StageStatus.COMPLETED)
+        simulated_stages = [
+            item.stage_key for item in results if item.status == StageStatus.SIMULATED
+        ]
         run_status = (
-            WorkflowStatus.COMPLETED if completed == len(results) else WorkflowStatus.FAILED
+            WorkflowStatus.COMPLETED
+            if completed + len(simulated_stages) == total
+            else WorkflowStatus.FAILED
         )
-        summary = (
-            f"Executed {completed}/{len(results)} stages successfully."
-            if run_status == WorkflowStatus.COMPLETED
-            else f"Run stopped with failures: {completed}/{len(results)} stages completed."
-        )
+        if run_status == WorkflowStatus.FAILED:
+            summary = f"Run stopped with failures: {completed}/{total} stages completed."
+        elif simulated_stages:
+            summary = f"Executed {total}/{total} stages, but only {completed} on real providers."
+        else:
+            summary = f"Executed {total}/{total} stages successfully."
+        if simulated_stages:
+            summary += (
+                " Simulated by the mock provider, with no media produced: "
+                f"{', '.join(simulated_stages)}."
+            )
 
         return WorkflowRunResult(
             plan_id=plan.id,
             status=run_status,
             stage_results=results,
+            simulated_stages=simulated_stages,
             director_summary=summary,
         )
 

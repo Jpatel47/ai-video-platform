@@ -34,6 +34,28 @@ export interface ApiWorkflowPlan {
   director_summary: string;
 }
 
+// Mirrors the backend StageResult / WorkflowRunResult returned by POST /api/v1/workflows/execute.
+// "simulated" means the mock provider ran the stage and no media was produced.
+export type ApiStageStatus = "completed" | "simulated" | "failed" | "skipped";
+
+export interface ApiStageResult {
+  stage_key: string;
+  label: string;
+  model_slug: string;
+  provider_slug: string;
+  status: ApiStageStatus;
+  output: Record<string, unknown>;
+  error: string | null;
+}
+
+export interface ApiWorkflowRunResult {
+  plan_id: string;
+  status: string;
+  stage_results: ApiStageResult[];
+  simulated_stages: string[];
+  director_summary: string;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,

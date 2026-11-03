@@ -103,7 +103,11 @@ The `WorkflowExecutor` runs a planned workflow synchronously:
 
 1. Stages are ordered topologically from their `depends_on` declarations.
 2. Each stage is dispatched to the provider adapter registered for its routed
-   model's provider slug; unregistered providers fall back to a mock adapter.
+   model's provider slug. Stages whose provider has no adapter, or whose adapter
+   does not implement the capability, fall back to a mock adapter. They are
+   reported with status `simulated` (not `completed`) and listed in the run's
+   `simulated_stages`, because the mock returns placeholder `mock://` URIs and
+   produces no media.
 3. Textual output from completed upstream stages is forwarded downstream as
    context, so the scene planner sees the story and the prompt enhancer sees
    the scenes.

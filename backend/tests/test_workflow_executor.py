@@ -93,7 +93,10 @@ async def test_executor_runs_all_stages_in_dependency_order() -> None:
 
     assert result.status == WorkflowStatus.COMPLETED
     assert len(result.stage_results) == 10
-    assert all(item.status == StageStatus.COMPLETED for item in result.stage_results)
+    assert all(
+        item.status in {StageStatus.COMPLETED, StageStatus.SIMULATED}
+        for item in result.stage_results
+    )
 
     llm_calls = [call["capability"] for call in recorder.calls]
     assert llm_calls == [
@@ -189,6 +192,62 @@ async def test_comfyui_receives_text_prompts_for_each_image_stage(
         "character_generation": "prompt_enhancement output",
         "image_generation": plan.request.prompt,
     }
+
+
+@pytest.mark.asyncio
+async def test_executor_marks_stages_run_by_the_mock_provider_as_simulated() -> None:
+    executor = WorkflowExecutor(
+        providers={"ollama-local": RecordingProvider(), "comfyui-local": FakeImageProvider()},
+        fallback_provider=MockAIProvider(),
+    )
+
+    result = await executor.execute(_plan())
+
+    # cloud-video and renderer have no adapter; the ComfyUI adapter does not implement
+    # voice or music. Those stages ran on the mock and must not be reported as completed.
+    statuses = {item.stage_key: item.status for item in result.stage_results}
+    assert statuses == {
+        "story_generation": "completed",
+        "scene_planning": "completed",
+        "prompt_enhancement": "completed",
+        "character_generation": "completed",
+        "image_generation": "completed",
+        "image_to_video": "simulated",
+        "voice_generation": "simulated",
+        "music_generation": "simulated",
+        "video_composition": "simulated",
+        "final_rendering": "simulated",
+    }
+    assert result.status == WorkflowStatus.COMPLETED
+    assert result.simulated_stages == [
+        "image_to_video",
+        "voice_generation",
+        "music_generation",
+        "video_composition",
+        "final_rendering",
+    ]
+    assert result.director_summary == (
+        "Executed 10/10 stages, but only 5 on real providers. Simulated by the mock "
+        "provider, with no media produced: image_to_video, voice_generation, "
+        "music_generation, video_composition, final_rendering."
+    )
+
+
+@pytest.mark.asyncio
+async def test_executor_reports_no_simulated_stages_when_all_adapters_exist() -> None:
+    recorder = RecordingProvider()
+    executor = WorkflowExecutor(
+        providers={
+            slug: recorder for slug in ("ollama-local", "comfyui-local", "cloud-video", "renderer")
+        },
+        fallback_provider=MockAIProvider(),
+    )
+
+    result = await executor.execute(_plan())
+
+    assert all(item.status == StageStatus.COMPLETED for item in result.stage_results)
+    assert result.simulated_stages == []
+    assert result.director_summary == "Executed 10/10 stages successfully."
 
 
 @pytest.mark.asyncio

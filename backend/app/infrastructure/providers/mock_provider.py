@@ -4,6 +4,8 @@ from app.domain.models.capability import CapabilityType
 
 
 class MockAIProvider:
+    """Placeholder for capabilities without a real adapter; it produces no media."""
+
     async def execute(
         self,
         *,
@@ -15,7 +17,7 @@ class MockAIProvider:
             "model_slug": model_slug,
             "capability": capability.value,
             "payload": payload,
-            "status": "completed",
+            "status": "simulated",
             "artifact_uri": f"mock://artifacts/{model_slug}/{capability.value}",
         }
 
