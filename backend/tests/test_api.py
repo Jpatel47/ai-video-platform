@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -34,6 +35,22 @@ def test_plan_workflow() -> None:
     assert response.status_code == 200
     plan = response.json()
     assert plan["status"] == "planned"
+    assert len(plan["stages"]) == 10
+    assert all(stage["route"] is not None for stage in plan["stages"])
+
+
+@pytest.mark.parametrize("mode", ["local", "cloud", "hybrid"])
+def test_plan_workflow_accepts_preferred_execution_mode(mode: str) -> None:
+    response = client.post(
+        "/api/v1/workflows/plan",
+        json={
+            "prompt": "A rabbit learns addition with friends.",
+            "quality": "high",
+            "preferred_execution_mode": mode,
+        },
+    )
+    assert response.status_code == 200, response.text
+    plan = response.json()
     assert len(plan["stages"]) == 10
     assert all(stage["route"] is not None for stage in plan["stages"])
 

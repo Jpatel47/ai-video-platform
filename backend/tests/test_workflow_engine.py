@@ -1,4 +1,7 @@
+import pytest
+
 from app.application.services.workflow_engine import WorkflowEngine
+from app.domain.models.model_definition import ExecutionMode
 from app.domain.models.workflow import WorkflowRequest, WorkflowStatus
 from app.infrastructure.registries.bootstrap import build_application_container
 
@@ -18,3 +21,22 @@ def test_workflow_engine_plans_text_to_video_workflow() -> None:
     assert len(plan.stages) == 10
     assert plan.total_estimated_latency_seconds > 0
     assert all(stage.route is not None for stage in plan.stages)
+
+
+@pytest.mark.parametrize("mode", list(ExecutionMode))
+def test_workflow_engine_plans_every_stage_for_each_execution_mode(mode: ExecutionMode) -> None:
+    container = build_application_container()
+    engine = WorkflowEngine(container.model_router, container.workflow_registry)
+
+    plan = engine.plan(
+        WorkflowRequest(
+            prompt="Create a magical children's story about a rabbit learning addition.",
+            quality="high",
+            preferred_execution_mode=mode,
+        )
+    )
+
+    assert len(plan.stages) == 10
+    routes = [stage.route for stage in plan.stages]
+    assert all(route is not None for route in routes)
+    assert any(route is not None and route.model.execution_mode == mode for route in routes)
