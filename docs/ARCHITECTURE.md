@@ -2,6 +2,8 @@
 
 ## Product Shape
 
+_Target design. See the README's Status section for what is implemented today._
+
 The application is an AI Director for animation production. Users describe outcomes; the platform expands intent into scenes, assets, audio, motion, edits, subtitles, and final renders.
 
 The platform does not own AI model code. It owns orchestration and product intelligence:

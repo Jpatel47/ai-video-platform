@@ -17,7 +17,10 @@ What works today:
 
 - `POST /api/v1/workflows/plan` builds the ten-stage plan and routes every stage by
   capability, quality, preferred execution mode (local, cloud or hybrid), cost and
-  latency. Each route includes a readable reason.
+  latency. Each route includes a readable reason. The built-in registry has one model
+  per stage capability, so today the score and `preferred_execution_mode` only change
+  the route reason; they decide between models once a capability has more than one
+  registered model.
 - `POST /api/v1/workflows/execute` plans and then runs the workflow synchronously,
   inside the request. Text stages call a local Ollama server and image stages call a
   local ComfyUI server. A failed stage marks its dependents as skipped.
@@ -47,6 +50,10 @@ but no video or audio yet. Known limitations:
   first checkpoint installed in ComfyUI.
 - `image_generation` depends only on `character_generation`, so it renders from the
   original brief rather than from the enhanced prompts.
+- `image_generation` receives `character_generation`'s image URIs in
+  `payload["artifacts"]`, but the ComfyUI adapter does not use them yet (no
+  image-to-image or reference conditioning), so character consistency is not
+  implemented. `supports_character_reference` is registry metadata only.
 - Without a running Ollama server, a run fails at `story_generation` and every other
   stage is skipped. Planning does not need Ollama or ComfyUI.
 
