@@ -15,9 +15,7 @@ IMAGE_CAPABILITIES = {
     CapabilityType.CHARACTER_GENERATION,
 }
 
-DEFAULT_NEGATIVE_PROMPT = (
-    "blurry, low quality, distorted, deformed, watermark, text, signature"
-)
+DEFAULT_NEGATIVE_PROMPT = "blurry, low quality, distorted, deformed, watermark, text, signature"
 
 
 class ComfyUIExecutionError(RuntimeError):
@@ -74,9 +72,7 @@ class ComfyUIProvider:
                 graph = self._text_to_image_graph(
                     checkpoint=checkpoint,
                     positive_prompt=positive_prompt,
-                    negative_prompt=str(
-                        payload.get("negative_prompt", DEFAULT_NEGATIVE_PROMPT)
-                    ),
+                    negative_prompt=str(payload.get("negative_prompt", DEFAULT_NEGATIVE_PROMPT)),
                     seed=int.from_bytes(uuid.uuid4().bytes[:4], "big"),
                     filename_prefix=f"ai-video/{capability.value}",
                 )
@@ -120,15 +116,11 @@ class ComfyUIProvider:
             return False
 
     async def _discover_checkpoint(self, client: httpx.AsyncClient) -> str:
-        response = await client.get(
-            f"{self._base_url}/object_info/CheckpointLoaderSimple"
-        )
+        response = await client.get(f"{self._base_url}/object_info/CheckpointLoaderSimple")
         response.raise_for_status()
         data = response.json()
         try:
-            checkpoints = data["CheckpointLoaderSimple"]["input"]["required"][
-                "ckpt_name"
-            ][0]
+            checkpoints = data["CheckpointLoaderSimple"]["input"]["required"]["ckpt_name"][0]
         except (KeyError, IndexError, TypeError):
             checkpoints = []
         if not checkpoints:
@@ -151,8 +143,7 @@ class ComfyUIProvider:
                 status = history.get("status", {})
                 if status.get("status_str") == "error":
                     raise ComfyUIExecutionError(
-                        f"ComfyUI job {prompt_id} failed: "
-                        f"{self._extract_error(history)}"
+                        f"ComfyUI job {prompt_id} failed: {self._extract_error(history)}"
                     )
                 images: list[dict[str, Any]] = []
                 for node_output in history.get("outputs", {}).values():
@@ -186,9 +177,7 @@ class ComfyUIProvider:
 
         context = payload.get("context")
         if isinstance(context, dict):
-            enhanced = context.get("prompt_enhancement") or context.get(
-                "character_generation"
-            )
+            enhanced = context.get("prompt_enhancement") or context.get("character_generation")
             if enhanced:
                 sections = [str(enhanced)]
 

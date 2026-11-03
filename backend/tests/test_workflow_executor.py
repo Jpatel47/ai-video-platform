@@ -80,9 +80,7 @@ async def test_executor_forwards_upstream_output_as_context() -> None:
 
     scene_call = recorder.calls[1]
     assert scene_call["capability"] == CapabilityType.SCENE_PLANNING
-    assert scene_call["payload"]["context"] == {
-        "story_generation": "story_generation output"
-    }
+    assert scene_call["payload"]["context"] == {"story_generation": "story_generation output"}
 
 
 @pytest.mark.asyncio
